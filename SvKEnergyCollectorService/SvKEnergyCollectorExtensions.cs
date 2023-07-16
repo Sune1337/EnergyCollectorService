@@ -8,6 +8,13 @@ public static class SvKEnergyCollectorExtensions
 
     public static IServiceCollection AddSvKEnergyCollectorService(this IServiceCollection services)
     {
+        // Register a HTTP client we will use for invoking SvK API.
+        services.AddHttpClient("SvKAPI", client =>
+        {
+            client.BaseAddress = new Uri("https://www.svk.se/");
+            client.DefaultRequestHeaders.Add("Accept", "application/json");
+        });
+
         // Add SvKEnergyCollectorService service.
         return services.AddTransient<ISvKEnergyCollectorService, SvKEnergyCollectorService>();
     }
