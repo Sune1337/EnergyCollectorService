@@ -3,8 +3,8 @@ namespace SvKEnergyCollectorService;
 using System.Net.Http.Json;
 using System.Text.Json;
 
-using global::SvKEnergyCollectorService.Models;
-using global::SvKEnergyCollectorService.Options;
+using EnergyCollectorService.InfluxDb.Models;
+using EnergyCollectorService.InfluxDb.Options;
 
 using InfluxDB.Client;
 using InfluxDB.Client.Api.Domain;
@@ -116,7 +116,7 @@ public class SvKEnergyCollectorService : ISvKEnergyCollectorService
                 // Iterate all energy-types.
                 foreach (var productionSource in data)
                 {
-                    if (EnergyTypeLookup.TryGetValue(productionSource.ID, out var description) == false)
+                    if (EnergyTypeLookup.TryGetValue(productionSource.ID, out var energyType) == false)
                     {
                         throw new Exception($"Could not find id {productionSource.ID} in EnergyTypeLookup.");
                     }
@@ -126,7 +126,7 @@ public class SvKEnergyCollectorService : ISvKEnergyCollectorService
                     {
                         influxWrite.WritePoint(
                             PointData.Measurement(_options.Value.Measurement)
-                                .Tag("measurements", description)
+                                .Tag("measurements", energyType)
                                 .Field("value", xy.Y)
                                 .Timestamp(xy.X, WritePrecision.Ns)
                             , _options.Value.Bucket, _options.Value.Organization

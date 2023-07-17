@@ -1,4 +1,4 @@
-namespace SvKEnergyCollectorService.Options;
+namespace EnergyCollectorService.InfluxDb.Options;
 
 public class InfluxDbOptions
 {

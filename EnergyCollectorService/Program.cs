@@ -1,7 +1,11 @@
 ﻿// Create host.
 
 using EnergyCollectorService;
+using EnergyCollectorService.InfluxDb.Options;
 using EnergyCollectorService.Options;
+
+using EntsoeCollectorService;
+using EntsoeCollectorService.Configuration;
 
 using Hangfire;
 
@@ -10,7 +14,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 using SvKEnergyCollectorService;
-using SvKEnergyCollectorService.Options;
 
 using var host = Host.CreateDefaultBuilder(args)
     .ConfigureAppConfiguration((_, configurationBuilder) =>
@@ -18,11 +21,13 @@ using var host = Host.CreateDefaultBuilder(args)
     )
     .ConfigureServices((hostBuilderContext, services) =>
     {
-        // Bind InfluxDbOptions option.
+        // Bind options.
         services.Configure<InfluxDbOptions>(hostBuilderContext.Configuration.GetSection("InfluxDbOptions"));
+        services.Configure<EntsoeApiOptions>(hostBuilderContext.Configuration.GetSection("EntsoeApiOptions"));
 
-        // Add SvKEnergyCollectorService service.
+        // Add collector services.
         services.AddSvKEnergyCollectorService();
+        services.AddEntsoeCollectorService();
 
         // Add Hangfire services.
         services.AddHangfire(configuration => configuration

@@ -1,4 +1,4 @@
-﻿namespace SvKEnergyCollectorService.Models;
+﻿namespace EnergyCollectorService.InfluxDb.Models;
 
 public class ProductionResponse
 {

@@ -2,6 +2,8 @@
 
 using EnergyCollectorService.Options;
 
+using EntsoeCollectorService;
+
 using Hangfire;
 
 using Microsoft.Extensions.Logging;
@@ -48,6 +50,11 @@ public class RecurringJobsService : IRecurringJobsService
                 case "SvKEnergyCollectorService":
                     // Register a recurring job to run SvKEnergyCollectorService.
                     _recurringJobManager.AddOrUpdate<ISvKEnergyCollectorService>(recurringJob.JobId, x => x.Run(CancellationToken.None), recurringJob.CronExpression);
+                    break;
+                
+                case "EntsoeCollectorService":
+                    // Register a recurring job to run EntsoeCollectorService.
+                    _recurringJobManager.AddOrUpdate<IEntsoeCollectorService>(recurringJob.JobId, x => x.Run(CancellationToken.None), recurringJob.CronExpression);
                     break;
             }
 
