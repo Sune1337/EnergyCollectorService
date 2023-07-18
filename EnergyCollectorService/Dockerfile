@@ -7,12 +7,14 @@ COPY ["EnergyCollectorService/EnergyCollectorService.csproj", "EnergyCollectorSe
 COPY ["EnergyCollectorService.InfluxDb/EnergyCollectorService.InfluxDb.csproj", "EnergyCollectorService.InfluxDb/"]
 COPY ["SvKEnergyCollectorService/SvKEnergyCollectorService.csproj", "SvKEnergyCollectorService/"]
 COPY ["EntsoeCollectorService/EntsoeCollectorService.csproj", "EntsoeCollectorService/"]
+COPY ["EnergyCollectorService.CurrencyConversion/EnergyCollectorService.CurrencyConversion.csproj", "EntsoeCollectorService/"]
 
 RUN update-ca-certificates
 RUN dotnet restore "EnergyCollectorService/EnergyCollectorService.csproj"
 RUN dotnet restore "EnergyCollectorService.InfluxDb/EnergyCollectorService.InfluxDb.csproj"
 RUN dotnet restore "SvKEnergyCollectorService/SvKEnergyCollectorService.csproj"
 RUN dotnet restore "EntsoeCollectorService/EntsoeCollectorService.csproj"
+RUN dotnet restore "EnergyCollectorService.CurrencyConversion/EnergyCollectorService.CurrencyConversion.csproj"
 COPY . .
 WORKDIR "/src/EnergyCollectorService"
 RUN dotnet build "EnergyCollectorService.csproj" -c Release -o /app/build
