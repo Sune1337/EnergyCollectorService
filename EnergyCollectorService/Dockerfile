@@ -7,7 +7,7 @@ COPY ["EnergyCollectorService/EnergyCollectorService.csproj", "EnergyCollectorSe
 COPY ["EnergyCollectorService.InfluxDb/EnergyCollectorService.InfluxDb.csproj", "EnergyCollectorService.InfluxDb/"]
 COPY ["SvKEnergyCollectorService/SvKEnergyCollectorService.csproj", "SvKEnergyCollectorService/"]
 COPY ["EntsoeCollectorService/EntsoeCollectorService.csproj", "EntsoeCollectorService/"]
-COPY ["EnergyCollectorService.CurrencyConversion/EnergyCollectorService.CurrencyConversion.csproj", "EntsoeCollectorService/"]
+COPY ["EnergyCollectorService.CurrencyConversion/EnergyCollectorService.CurrencyConversion.csproj", "EnergyCollectorService.CurrencyConversion/"]
 
 RUN update-ca-certificates
 RUN dotnet restore "EnergyCollectorService/EnergyCollectorService.csproj"
