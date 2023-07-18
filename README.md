@@ -20,5 +20,6 @@ gunzip --stdout energycollectorservice-1.0.0.tar.gz | docker load
 3. in cmd.exe run:
 ```
 cd .\EntsoeCollectorService\EntsoeApi\Models
-xsd /namespace:EntsoeCollectorService.EntsoeApi.Models /c .\xsd\urn-entsoe-eu-local-extension-types.xsd .\xsd\urn-entsoe-eu-wgedi-codelists.xsd .\xsd\iec62325-451-6-generationload.xsd
+xsd /namespace:EntsoeCollectorService.EntsoeApi.Models.Generationload /c .\xsd\urn-entsoe-eu-wgedi-codelists.xsd .\xsd\iec62325-451-6-generationload.xsd
+xsd /namespace:EntsoeCollectorService.EntsoeApi.Models.Publication /c .\xsd\urn-entsoe-eu-wgedi-codelists.xsd .\xsd\iec62325-451-3-publication.xsd
 ```

@@ -20,6 +20,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\EnergyCollectorService.CurrencyConversion\EnergyCollectorService.CurrencyConversion.csproj" />
       <ProjectReference Include="..\EntsoeCollectorService\EntsoeCollectorService.csproj" />
       <ProjectReference Include="..\SvKEnergyCollectorService\SvKEnergyCollectorService.csproj" />
     </ItemGroup>

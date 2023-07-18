@@ -73,7 +73,7 @@ public class SvKEnergyCollectorService : ISvKEnergyCollectorService
                 (
                     await influxQuery.QueryAsync<InfluxData>($@"from(bucket: ""{_options.Value.Bucket}"")
   |> range(start: -1y, stop: now())
-  |> filter(fn: (r) => r[""_measurement""] == ""{_options.Value.Measurement}"")
+  |> filter(fn: (r) => r[""_measurement""] == ""{_options.Value.EnergyMeasurement}"")
   |> group()
   |> last(column: ""_time"")
 ", _options.Value.Organization, cancellationToken)
@@ -125,7 +125,7 @@ public class SvKEnergyCollectorService : ISvKEnergyCollectorService
                     foreach (var xy in productionSource.Data)
                     {
                         influxWrite.WritePoint(
-                            PointData.Measurement(_options.Value.Measurement)
+                            PointData.Measurement(_options.Value.EnergyMeasurement)
                                 .Tag("measurements", energyType)
                                 .Field("value", xy.Y)
                                 .Timestamp(xy.X, WritePrecision.Ns)

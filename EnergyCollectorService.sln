@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EntsoeCollectorService", "E
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EnergyCollectorService.InfluxDb", "EnergyCollectorService.InfluxDb\EnergyCollectorService.InfluxDb.csproj", "{6BBB9935-0F17-4A7C-BC00-18F40FD674D2}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EnergyCollectorService.CurrencyConversion", "EnergyCollectorService.CurrencyConversion\EnergyCollectorService.CurrencyConversion.csproj", "{8AA0794E-27E7-429D-A66F-B518DFDDDFFC}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -35,5 +37,9 @@ Global
 		{6BBB9935-0F17-4A7C-BC00-18F40FD674D2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6BBB9935-0F17-4A7C-BC00-18F40FD674D2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6BBB9935-0F17-4A7C-BC00-18F40FD674D2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8AA0794E-27E7-429D-A66F-B518DFDDDFFC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8AA0794E-27E7-429D-A66F-B518DFDDDFFC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8AA0794E-27E7-429D-A66F-B518DFDDDFFC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8AA0794E-27E7-429D-A66F-B518DFDDDFFC}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

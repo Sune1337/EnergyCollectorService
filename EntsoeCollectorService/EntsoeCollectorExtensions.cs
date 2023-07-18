@@ -3,6 +3,7 @@
 using global::EntsoeCollectorService.Configuration;
 using global::EntsoeCollectorService.EntsoeApi;
 using global::EntsoeCollectorService.EntsoeApi.Serialization;
+using global::EntsoeCollectorService.Measurements;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -40,7 +41,11 @@ public static class EntsoeCollectorExtensions
             UrlParameterFormatter = new UrlParameterFormatter()
         }, httpClientName: "EntsoeApiHttpClient");
 
-        // Add SvKEnergyCollectorService service.
+        // Add data-transfer helpers.
+        services.AddTransient<EnergyMeasurements>();
+        services.AddTransient<DayAheadPriceMeasurements>();
+
+        // Add EntsoeCollectorService service.
         services.AddTransient<IEntsoeCollectorService, EntsoeCollectorService>();
 
         return services;

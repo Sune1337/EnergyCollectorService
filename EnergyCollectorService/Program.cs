@@ -1,6 +1,8 @@
 ﻿// Create host.
 
 using EnergyCollectorService;
+using EnergyCollectorService.CurrencyConversion;
+using EnergyCollectorService.CurrencyConversion.Configuration;
 using EnergyCollectorService.InfluxDb.Options;
 using EnergyCollectorService.Options;
 
@@ -22,10 +24,12 @@ using var host = Host.CreateDefaultBuilder(args)
     .ConfigureServices((hostBuilderContext, services) =>
     {
         // Bind options.
+        services.Configure<RiksbankenApiOptions>(hostBuilderContext.Configuration.GetSection("RiksbankenApiOptions"));
         services.Configure<InfluxDbOptions>(hostBuilderContext.Configuration.GetSection("InfluxDbOptions"));
         services.Configure<EntsoeApiOptions>(hostBuilderContext.Configuration.GetSection("EntsoeApiOptions"));
 
         // Add collector services.
+        services.AddCurrencyConvertService();
         services.AddSvKEnergyCollectorService();
         services.AddEntsoeCollectorService();
 
