@@ -63,7 +63,11 @@ public class LoadMeasurements
     public async Task SyncData(CancellationToken cancellationToken)
     {
         // Create InfluxDB client.
-        using var influxDBClient = new InfluxDBClient(_influxDbOptions.Value.Server, _influxDbOptions.Value.Token);
+        using var influxDBClient = new InfluxDBClient(new InfluxDBClientOptions(_influxDbOptions.Value.Server)
+        {
+            Token = _influxDbOptions.Value.Token,
+            Timeout = TimeSpan.FromSeconds(30)
+        });
 
         // Get influx reader
         var queryApi = influxDBClient.GetQueryApi();
