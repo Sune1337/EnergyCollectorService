@@ -1,13 +1,11 @@
 ﻿namespace EntsoeCollectorService;
 
-using global::EntsoeCollectorService.Configuration;
-using global::EntsoeCollectorService.EntsoeApi;
-using global::EntsoeCollectorService.EntsoeApi.Serialization;
-using global::EntsoeCollectorService.Measurements;
-
+using Configuration;
+using EntsoeApi;
+using EntsoeApi.Serialization;
+using Measurements;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-
 using Refit;
 
 public static class EntsoeCollectorExtensions
@@ -42,7 +40,8 @@ public static class EntsoeCollectorExtensions
         }, httpClientName: "EntsoeApiHttpClient");
 
         // Add data-transfer helpers.
-        services.AddTransient<EnergyMeasurements>();
+        services.AddTransient<GenerateMeasurements>();
+        services.AddTransient<LoadMeasurements>();
         services.AddTransient<DayAheadPriceMeasurements>();
 
         // Add EntsoeCollectorService service.

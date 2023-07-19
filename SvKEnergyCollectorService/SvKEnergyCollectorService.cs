@@ -2,14 +2,11 @@ namespace SvKEnergyCollectorService;
 
 using System.Net.Http.Json;
 using System.Text.Json;
-
 using EnergyCollectorService.InfluxDb.Models;
 using EnergyCollectorService.InfluxDb.Options;
-
 using InfluxDB.Client;
 using InfluxDB.Client.Api.Domain;
 using InfluxDB.Client.Writes;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -73,7 +70,7 @@ public class SvKEnergyCollectorService : ISvKEnergyCollectorService
                 (
                     await influxQuery.QueryAsync<InfluxData>($@"from(bucket: ""{_options.Value.Bucket}"")
   |> range(start: -1y, stop: now())
-  |> filter(fn: (r) => r[""_measurement""] == ""{_options.Value.EnergyMeasurement}"")
+  |> filter(fn: (r) => r[""_measurement""] == ""{_options.Value.GenerateMeasurement}"")
   |> group()
   |> last(column: ""_time"")
 ", _options.Value.Organization, cancellationToken)
@@ -125,7 +122,7 @@ public class SvKEnergyCollectorService : ISvKEnergyCollectorService
                     foreach (var xy in productionSource.Data)
                     {
                         influxWrite.WritePoint(
-                            PointData.Measurement(_options.Value.EnergyMeasurement)
+                            PointData.Measurement(_options.Value.GenerateMeasurement)
                                 .Tag("measurements", energyType)
                                 .Field("value", xy.Y)
                                 .Timestamp(xy.X, WritePrecision.Ns)

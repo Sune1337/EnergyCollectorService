@@ -1,6 +1,6 @@
 ﻿namespace EntsoeCollectorService;
 
-using global::EntsoeCollectorService.Measurements;
+using Measurements;
 
 public class EntsoeCollectorService : IEntsoeCollectorService
 {
@@ -8,15 +8,17 @@ public class EntsoeCollectorService : IEntsoeCollectorService
 
     private readonly DayAheadPriceMeasurements _dayAheadPriceMeasurements;
 
-    private readonly EnergyMeasurements _energyMeasurements;
+    private readonly GenerateMeasurements _generateMeasurements;
+    private readonly LoadMeasurements _loadMeasurements;
 
     #endregion
 
     #region Constructors and Destructors
 
-    public EntsoeCollectorService(EnergyMeasurements energyMeasurements, DayAheadPriceMeasurements dayAheadPriceMeasurements)
+    public EntsoeCollectorService(GenerateMeasurements generateMeasurements, LoadMeasurements loadMeasurements, DayAheadPriceMeasurements dayAheadPriceMeasurements)
     {
-        _energyMeasurements = energyMeasurements;
+        _generateMeasurements = generateMeasurements;
+        _loadMeasurements = loadMeasurements;
         _dayAheadPriceMeasurements = dayAheadPriceMeasurements;
     }
 
@@ -26,8 +28,9 @@ public class EntsoeCollectorService : IEntsoeCollectorService
 
     public async Task Run(CancellationToken cancellationToken)
     {
-        await _energyMeasurements.SyncEnergyData(cancellationToken);
-        await _dayAheadPriceMeasurements.SyncDayAheadPriceData(cancellationToken);
+        await _generateMeasurements.SyncData(cancellationToken);
+        await _loadMeasurements.SyncData(cancellationToken);
+        await _dayAheadPriceMeasurements.SyncData(cancellationToken);
     }
 
     #endregion

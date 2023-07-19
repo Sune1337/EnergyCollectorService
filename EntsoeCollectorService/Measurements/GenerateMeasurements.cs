@@ -1,25 +1,20 @@
 ﻿namespace EntsoeCollectorService.Measurements;
 
 using System.Globalization;
-
+using Configuration;
 using EnergyCollectorService.InfluxDb.Models;
 using EnergyCollectorService.InfluxDb.Options;
-
-using global::EntsoeCollectorService.Configuration;
-using global::EntsoeCollectorService.EntsoeApi;
-using global::EntsoeCollectorService.EntsoeApi.Models.Generationload;
-using global::EntsoeCollectorService.Utils;
-
+using EntsoeApi;
+using EntsoeApi.Models.Generationload;
 using InfluxDB.Client;
 using InfluxDB.Client.Api.Domain;
 using InfluxDB.Client.Writes;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-
 using Refit;
+using Utils;
 
-public class EnergyMeasurements
+public class GenerateMeasurements
 {
     #region Static Fields
 
@@ -88,7 +83,7 @@ public class EnergyMeasurements
 
     #region Constructors and Destructors
 
-    public EnergyMeasurements(ILogger<EntsoeCollectorService> logger, IEntsoeApiClient entsoeApiClient, IOptions<EntsoeApiOptions> options, IOptions<InfluxDbOptions> influxDbOptions)
+    public GenerateMeasurements(ILogger<EntsoeCollectorService> logger, IEntsoeApiClient entsoeApiClient, IOptions<EntsoeApiOptions> options, IOptions<InfluxDbOptions> influxDbOptions)
     {
         _logger = logger;
         _entsoeApiClient = entsoeApiClient;
@@ -100,7 +95,7 @@ public class EnergyMeasurements
 
     #region Public Methods and Operators
 
-    public async Task SyncEnergyData(CancellationToken cancellationToken)
+    public async Task SyncData(CancellationToken cancellationToken)
     {
         // Create InfluxDB client.
         using var influxDBClient = new InfluxDBClient(_influxDbOptions.Value.Server, _influxDbOptions.Value.Token);
@@ -113,7 +108,7 @@ public class EnergyMeasurements
             (
                 await influxQuery.QueryAsync<InfluxData>($@"from(bucket: ""{_influxDbOptions.Value.Bucket}"")
   |> range(start: -10y, stop: now())
-  |> filter(fn: (r) => r[""_measurement""] == ""{_influxDbOptions.Value.EnergyMeasurement}"")
+  |> filter(fn: (r) => r[""_measurement""] == ""{_influxDbOptions.Value.GenerateMeasurement}"")
   |> group()
   |> last(column: ""_time"")
 ", _influxDbOptions.Value.Organization, cancellationToken)
@@ -194,7 +189,7 @@ public class EnergyMeasurements
 
                 // Save quantityPerEnergyType to InfluxDb.
                 influxWrite.WritePoint(
-                    PointData.Measurement(_influxDbOptions.Value.EnergyMeasurement)
+                    PointData.Measurement(_influxDbOptions.Value.GenerateMeasurement)
                         .Tag("measurements", pointsForEnergyType.Key)
                         .Field("value", quantityPerEnergyType)
                         .Timestamp(minDateTime, WritePrecision.Ns)
@@ -206,7 +201,7 @@ public class EnergyMeasurements
 
             // Save totalQuantity to InfluxDb.
             influxWrite.WritePoint(
-                PointData.Measurement(_influxDbOptions.Value.EnergyMeasurement)
+                PointData.Measurement(_influxDbOptions.Value.GenerateMeasurement)
                     .Tag("measurements", "Total produktion")
                     .Field("value", totalQuantity)
                     .Timestamp(pointsForDateTime.Key, WritePrecision.Ns)

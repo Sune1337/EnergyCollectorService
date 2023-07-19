@@ -6,5 +6,7 @@ public class InfluxData
 
     public DateTime Time { get; init; }
 
+    public decimal Value { get; init; }
+
     #endregion
 }

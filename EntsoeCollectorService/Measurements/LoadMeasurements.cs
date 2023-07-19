@@ -1,12 +1,13 @@
 ﻿namespace EntsoeCollectorService.Measurements;
 
 using System.Globalization;
+using System.Xml;
 using Configuration;
 using EnergyCollectorService.CurrencyConversion;
 using EnergyCollectorService.InfluxDb.Models;
 using EnergyCollectorService.InfluxDb.Options;
 using EntsoeApi;
-using EntsoeApi.Models.Publication;
+using EntsoeApi.Models.Generationload;
 using InfluxDB.Client;
 using InfluxDB.Client.Api.Domain;
 using InfluxDB.Client.Writes;
@@ -15,7 +16,7 @@ using Microsoft.Extensions.Options;
 using Refit;
 using Utils;
 
-public class DayAheadPriceMeasurements
+public class LoadMeasurements
 {
     #region Static Fields
 
@@ -46,7 +47,7 @@ public class DayAheadPriceMeasurements
 
     #region Constructors and Destructors
 
-    public DayAheadPriceMeasurements(ILogger<EntsoeCollectorService> logger, IEntsoeApiClient entsoeApiClient, IOptions<EntsoeApiOptions> options, IOptions<InfluxDbOptions> influxDbOptions, ICurrencyConvert currencyConvert)
+    public LoadMeasurements(ILogger<EntsoeCollectorService> logger, IEntsoeApiClient entsoeApiClient, IOptions<EntsoeApiOptions> options, IOptions<InfluxDbOptions> influxDbOptions, ICurrencyConvert currencyConvert)
     {
         _logger = logger;
         _entsoeApiClient = entsoeApiClient;
@@ -71,9 +72,62 @@ public class DayAheadPriceMeasurements
         using var writeApi = influxDBClient.GetWriteApi();
         writeApi.EventHandler += InfluxWriteEventHandler;
 
+        // Sync new data.
+        DateTime? minFirstDate = null, minLastDate = null;
         foreach (var areaKeyValue in AreaLookup)
         {
-            await SyncDayAheadPricesForArea(areaKeyValue, queryApi, writeApi, cancellationToken);
+            var (currentFirstDate, currentLastDate) = await SyncLoadForArea(areaKeyValue, queryApi, writeApi, cancellationToken);
+            if (minFirstDate == null || currentFirstDate < minFirstDate)
+            {
+                minFirstDate = currentFirstDate;
+            }
+
+            if (minLastDate == null || currentLastDate < minLastDate)
+            {
+                minLastDate = currentLastDate;
+            }
+        }
+
+        // Calculate new total load.
+        if (minFirstDate != null && minLastDate != null)
+        {
+            // Make sure all written data is flushed.
+            writeApi.Flush();
+
+            var start = XmlConvert.ToString(minFirstDate.Value, XmlDateTimeSerializationMode.Utc);
+
+            var lastCalculatedLoadData = await queryApi.QueryAsync<InfluxData>($@"from(bucket: ""{_influxDbOptions.Value.Bucket}"")
+  |> range(start: -10y, stop: now())
+  |> filter(fn: (r) => r[""_measurement""] == ""{_influxDbOptions.Value.LoadMeasurement}"" and r[""measurements""] == ""Total last"")
+  |> group()
+  |> last(column: ""_time"")
+", _influxDbOptions.Value.Organization, cancellationToken);
+
+            var lastTotalLoadDateTime = lastCalculatedLoadData.FirstOrDefault()?.Time;
+            var calculateFromDateTime = lastTotalLoadDateTime == null || minFirstDate < lastTotalLoadDateTime
+                ? minFirstDate.Value
+                : lastTotalLoadDateTime.Value;
+
+            start = XmlConvert.ToString(calculateFromDateTime, XmlDateTimeSerializationMode.Utc);
+            var stop = XmlConvert.ToString(minLastDate.Value.AddMicroseconds(1), XmlDateTimeSerializationMode.Utc);
+            var loadData = await queryApi.QueryAsync<InfluxData>($@"from(bucket: ""{_influxDbOptions.Value.Bucket}"")
+  |> range(start: {start}, stop: {stop})
+  |> filter(fn: (r) => r[""_measurement""] == ""{_influxDbOptions.Value.LoadMeasurement}"" and r[""_field""] == ""value"" and r[""measurements""] != ""Total last"")
+  |> group(columns: [""_time""])
+  |> sum(column: ""_value"")
+", _influxDbOptions.Value.Organization, cancellationToken);
+
+            foreach (var data in loadData)
+            {
+                // Save data to InfluxDb.
+                writeApi.WritePoint(
+                    PointData.Measurement(_influxDbOptions.Value.LoadMeasurement)
+                        .Tag("measurements", "Total last")
+                        .Field("value", data.Value)
+                        .Timestamp(data.Time, WritePrecision.Ns)
+                    , _influxDbOptions.Value.Bucket, _influxDbOptions.Value.Organization
+                );
+            }
         }
     }
 
@@ -81,12 +135,12 @@ public class DayAheadPriceMeasurements
 
     #region Methods
 
-    private async Task DownloadDayAheadPriceData(DateTime startDateTime, TimeSpan timeSpan, KeyValuePair<string, string> areaKeyValue, WriteApi influxWrite, CancellationToken cancellationToken)
+    private async Task<(DateTime? minFirstDate, DateTime? minLastDate)> DownloadLoadData(DateTime startDateTime, TimeSpan timeSpan, KeyValuePair<string, string> areaKeyValue, WriteApi influxWrite, CancellationToken cancellationToken)
     {
-        Publication_MarketDocument? data;
+        GL_MarketDocument? data;
         try
         {
-            data = await _entsoeApiClient.DayAheadPrices(_options.Value.AccessToken, areaKeyValue.Key, areaKeyValue.Key, startDateTime, startDateTime.Add(timeSpan), cancellationToken);
+            data = await _entsoeApiClient.ActualLoadPerProductionType(_options.Value.AccessToken, areaKeyValue.Key, startDateTime, startDateTime.Add(timeSpan), cancellationToken);
         }
 
         catch (ApiException ex)
@@ -96,7 +150,7 @@ public class DayAheadPriceMeasurements
             if (acknowledgement?.Reason?.text?.StartsWith("No matching data found") == true)
             {
                 // No data found for the current query.
-                return;
+                return (null, null);
             }
 
             throw;
@@ -104,30 +158,41 @@ public class DayAheadPriceMeasurements
 
         var points = data.TimeSeries
             .SelectMany(ts => EnumeratePeriodPoints(ts,
-                    (dateTime, currency, priceMeasureUnit, point) => new
+                    (dateTime, point) => new
                     {
-                        dateTime, currency, priceMeasureUnit, point.priceamount
+                        dateTime, point.quantity
                     }
                 )
             );
 
         // Parse data and iterate all points.
+        DateTime? minDate = null, maxDate = null;
         foreach (var point in points)
         {
-            var exchangeRate = await _currencyConvert.Convert(point.dateTime);
+            if (minDate == null || point.dateTime < minDate)
+            {
+                minDate = point.dateTime;
+            }
+
+            if (maxDate == null || point.dateTime > maxDate)
+            {
+                maxDate = point.dateTime;
+            }
 
             // Save data to InfluxDb.
             influxWrite.WritePoint(
-                PointData.Measurement(_influxDbOptions.Value.DayAheadPriceMeasurement)
+                PointData.Measurement(_influxDbOptions.Value.LoadMeasurement)
                     .Tag("measurements", areaKeyValue.Value)
-                    .Field("value", point.priceamount * exchangeRate / 1000)
+                    .Field("value", point.quantity)
                     .Timestamp(point.dateTime, WritePrecision.Ns)
                 , _influxDbOptions.Value.Bucket, _influxDbOptions.Value.Organization
             );
         }
+
+        return (minDate, maxDate);
     }
 
-    private IEnumerable<T> EnumeratePeriodPoints<T>(TimeSeries? timeSerie, Func<DateTime, string, string, Point, T> func)
+    private IEnumerable<T> EnumeratePeriodPoints<T>(TimeSeries? timeSerie, Func<DateTime, Point, T> func)
     {
         if (timeSerie == null)
         {
@@ -159,7 +224,7 @@ public class DayAheadPriceMeasurements
 
                 var pointDateTime = firstDateTime.Add(resolution * (position - 1));
 
-                yield return func(pointDateTime, timeSerie.currency_Unitname, timeSerie.price_Measure_Unitname, point);
+                yield return func(pointDateTime, point);
             }
         }
     }
@@ -180,14 +245,14 @@ public class DayAheadPriceMeasurements
         }
     }
 
-    private async Task SyncDayAheadPricesForArea(KeyValuePair<string, string> areaKeyValue, QueryApi influxQuery, WriteApi influxWrite, CancellationToken cancellationToken)
+    private async Task<(DateTime? firstDate, DateTime? lastDate)> SyncLoadForArea(KeyValuePair<string, string> areaKeyValue, QueryApi influxQuery, WriteApi influxWrite, CancellationToken cancellationToken)
     {
         // Find out what the latest date is that we've previously stored.
         var from = (
             (
                 await influxQuery.QueryAsync<InfluxData>($@"from(bucket: ""{_influxDbOptions.Value.Bucket}"")
   |> range(start: -10y, stop: now())
-  |> filter(fn: (r) => r[""_measurement""] == ""{_influxDbOptions.Value.DayAheadPriceMeasurement}"" and r[""measurements""] == ""{areaKeyValue.Value}"")
+  |> filter(fn: (r) => r[""_measurement""] == ""{_influxDbOptions.Value.LoadMeasurement}"" and r[""measurements""] == ""{areaKeyValue.Value}"")
   |> group()
   |> last(column: ""_time"")
 ", _influxDbOptions.Value.Organization, cancellationToken)
@@ -199,11 +264,24 @@ public class DayAheadPriceMeasurements
         var timeSpan = TimeSpan.FromDays(7);
 
         var currentDate = startDateTime;
+        DateTime? firstDate = null, lastDate = null;
         while (currentDate < DateTime.Now)
         {
-            await DownloadDayAheadPriceData(currentDate, timeSpan, areaKeyValue, influxWrite, cancellationToken);
+            var (currentFirstDate, currentLastDate) = await DownloadLoadData(currentDate, timeSpan, areaKeyValue, influxWrite, cancellationToken);
+            if (firstDate == null || currentFirstDate < firstDate)
+            {
+                firstDate = currentFirstDate;
+            }
+
+            if (lastDate == null || currentLastDate > lastDate)
+            {
+                lastDate = currentLastDate;
+            }
+
             currentDate = currentDate.Add(timeSpan);
         }
+
+        return (firstDate, lastDate);
     }
 
     #endregion
