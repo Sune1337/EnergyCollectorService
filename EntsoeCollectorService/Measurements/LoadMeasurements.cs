@@ -104,9 +104,11 @@ public class LoadMeasurements
 ", _influxDbOptions.Value.Organization, cancellationToken);
 
             var lastTotalLoadDateTime = lastCalculatedLoadData.FirstOrDefault()?.Time;
-            var calculateFromDateTime = lastTotalLoadDateTime == null || minFirstDate < lastTotalLoadDateTime
-                ? minFirstDate.Value
-                : lastTotalLoadDateTime.Value;
+            var calculateFromDateTime = lastTotalLoadDateTime == null
+                ? DateTime.Now.AddYears(-10).Date
+                : minFirstDate < lastTotalLoadDateTime
+                    ? minFirstDate.Value
+                    : lastTotalLoadDateTime.Value;
 
             start = XmlConvert.ToString(calculateFromDateTime, XmlDateTimeSerializationMode.Utc);
             var stop = XmlConvert.ToString(minLastDate.Value.AddMicroseconds(1), XmlDateTimeSerializationMode.Utc);
