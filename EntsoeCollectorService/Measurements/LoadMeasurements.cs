@@ -1,4 +1,6 @@
-﻿namespace EntsoeCollectorService.Measurements;
+﻿using EnergyCollectorService.Utils;
+
+namespace EntsoeCollectorService.Measurements;
 
 using System.Globalization;
 using System.Xml;
@@ -18,22 +20,6 @@ using Utils;
 
 public class LoadMeasurements
 {
-    #region Static Fields
-
-    private static readonly Dictionary<string, string> AreaLookup = new()
-    {
-        // 10Y1001A1001A44P IPA|SE1, BZN|SE1, MBA|SE1, SCA|SE1
-        { "10Y1001A1001A44P", "SE1" },
-        // 10Y1001A1001A45N SCA|SE2, MBA|SE2, BZN|SE2, IPA|SE2
-        { "10Y1001A1001A45N", "SE2" },
-        // 10Y1001A1001A46L IPA|SE3, BZN|SE3, MBA|SE3, SCA|SE3
-        { "10Y1001A1001A46L", "SE3" },
-        // 10Y1001A1001A47J SCA|SE4, MBA|SE4, BZN|SE4, IPA|SE4
-        { "10Y1001A1001A47J", "SE4" }
-    };
-
-    #endregion
-
     #region Fields
 
     private readonly ICurrencyConvert _currencyConvert;
@@ -78,7 +64,7 @@ public class LoadMeasurements
 
         // Sync new data.
         DateTime? minFirstDate = null, minLastDate = null;
-        foreach (var areaKeyValue in AreaLookup)
+        foreach (var areaKeyValue in EntsoeCodes.Areas)
         {
             var (currentFirstDate, currentLastDate) = await SyncLoadForArea(areaKeyValue, queryApi, writeApi, cancellationToken);
             if (minFirstDate == null || currentFirstDate < minFirstDate)
@@ -109,7 +95,7 @@ public class LoadMeasurements
 
             var lastTotalLoadDateTime = lastCalculatedLoadData.FirstOrDefault()?.Time;
             var calculateFromDateTime = lastTotalLoadDateTime == null
-                ? DateTime.Now.AddYears(-10).Date
+                ? BeginningOfTime.DateTime
                 : minFirstDate < lastTotalLoadDateTime
                     ? minFirstDate.Value
                     : lastTotalLoadDateTime.Value;
@@ -263,7 +249,7 @@ public class LoadMeasurements
   |> last(column: ""_time"")
 ", _influxDbOptions.Value.Organization, cancellationToken)
             )
-            .FirstOrDefault()?.Time ?? DateTime.Now.AddYears(-10)
+            .FirstOrDefault()?.Time ?? BeginningOfTime.DateTime
         ).Date;
 
         var startDateTime = from.Date;

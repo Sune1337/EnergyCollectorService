@@ -1,77 +1,22 @@
-﻿namespace EntsoeCollectorService.Measurements;
-
-using System.Globalization;
-using Configuration;
+﻿using System.Globalization;
 using EnergyCollectorService.InfluxDb.Models;
 using EnergyCollectorService.InfluxDb.Options;
-using EntsoeApi;
-using EntsoeApi.Models.Generationload;
+using EnergyCollectorService.Utils;
+using EntsoeCollectorService.Configuration;
+using EntsoeCollectorService.EntsoeApi;
+using EntsoeCollectorService.EntsoeApi.Models.Generationload;
+using EntsoeCollectorService.Utils;
 using InfluxDB.Client;
 using InfluxDB.Client.Api.Domain;
 using InfluxDB.Client.Writes;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Refit;
-using Utils;
+
+namespace EntsoeCollectorService.Measurements;
 
 public class GenerateMeasurements
 {
-    #region Static Fields
-
-    private static readonly Dictionary<string, string> EnergyTypeLookup = new()
-    {
-        // B01 Biomass
-        { "B01", "Värmekraft" },
-        // B02 Fossil Brown coal/Lignite
-        { "B02", "Värmekraft" },
-        // B03 Fossil Coal-derived gas
-        { "B03", "Värmekraft" },
-        // B04 Fossil Gas
-        { "B04", "Värmekraft" },
-        // B05 Fossil Hard coal
-        { "B05", "Värmekraft" },
-        // B06 Fossil Oil
-        { "B06", "Värmekraft" },
-        // B07 Fossil Oil shale
-        { "B07", "Värmekraft" },
-        // B08 Fossil Peat
-        { "B08", "Värmekraft" },
-        // B09 Geothermal
-        { "B09", "Värmekraft" },
-        // B10 Hydro Pumped Storage
-        { "B10", "Vattenkraft" },
-        // B11 Hydro Run-of-river and poundage
-        { "B11", "Vattenkraft" },
-        // B12 Hydro Water Reservoir
-        { "B12", "Vattenkraft" },
-        // B13 Marine
-        { "B13", "Ospecificerat" },
-        // B14 Nuclear
-        { "B14", "Kärnkraft" },
-        // B15 Other renewable
-        { "B15", "Ospecificerat" },
-        // B16 Solar
-        { "B16", "Solkraft" },
-        // B17 Waste
-        { "B17", "Värmekraft" },
-        // B18 Wind Offshore
-        { "B18", "Vindkraft" },
-        // B19 Wind Onshore
-        { "B19", "Vindkraft" },
-        // B20 Other
-        { "B20", "Ospecificerat" },
-        // B21 AC Link
-        { "B21", "Ospecificerat" },
-        // B22 DC Link
-        { "B22", "Ospecificerat" },
-        // B23 Substation
-        { "B23", "Ospecificerat" },
-        // B24 Transformer
-        { "B24", "Ospecificerat" },
-    };
-
-    #endregion
-
     #region Fields
 
     private readonly IEntsoeApiClient _entsoeApiClient;
@@ -98,36 +43,33 @@ public class GenerateMeasurements
     public async Task SyncData(CancellationToken cancellationToken)
     {
         // Create InfluxDB client.
-        using var influxDBClient = new InfluxDBClient(_influxDbOptions.Value.Server, _influxDbOptions.Value.Token);
+        using var influxDBClient = new InfluxDBClient(new InfluxDBClientOptions(_influxDbOptions.Value.Server)
+        {
+            Token = _influxDbOptions.Value.Token,
+            Timeout = TimeSpan.FromSeconds(30)
+        });
 
         // Get influx reader
-        var influxQuery = influxDBClient.GetQueryApi();
-
-        // Find out what the latest date is that we've previously stored.
-        var from = (
-            (
-                await influxQuery.QueryAsync<InfluxData>($@"from(bucket: ""{_influxDbOptions.Value.Bucket}"")
-  |> range(start: -10y, stop: now())
-  |> filter(fn: (r) => r[""_measurement""] == ""{_influxDbOptions.Value.GenerateMeasurement}"")
-  |> group()
-  |> last(column: ""_time"")
-", _influxDbOptions.Value.Organization, cancellationToken)
-            )
-            .FirstOrDefault()?.Time ?? DateTime.Now.AddYears(-10)
-        ).Date;
+        var queryApi = influxDBClient.GetQueryApi();
 
         // Get influx writer.
-        using var influxWrite = influxDBClient.GetWriteApi();
-        influxWrite.EventHandler += InfluxWriteEventHandler;
+        using var writeApi = influxDBClient.GetWriteApi();
+        writeApi.EventHandler += InfluxWriteEventHandler;
 
-        var startDateTime = from.Date;
-        var timeSpan = TimeSpan.FromDays(7);
-
-        var currentDate = startDateTime;
-        while (currentDate < DateTime.Now)
+        // Sync new data.
+        DateTime? minFirstDate = null, minLastDate = null;
+        foreach (var areaKeyValue in EntsoeCodes.Areas)
         {
-            await DownloadEnergyData(currentDate, timeSpan, influxWrite, cancellationToken);
-            currentDate = currentDate.Add(timeSpan);
+            var (currentFirstDate, currentLastDate) = await SyncGenerateForArea(areaKeyValue, queryApi, writeApi, cancellationToken);
+            if (minFirstDate == null || currentFirstDate < minFirstDate)
+            {
+                minFirstDate = currentFirstDate;
+            }
+
+            if (minLastDate == null || currentLastDate < minLastDate)
+            {
+                minLastDate = currentLastDate;
+            }
         }
     }
 
@@ -135,14 +77,12 @@ public class GenerateMeasurements
 
     #region Methods
 
-    private async Task DownloadEnergyData(DateTime startDateTime, TimeSpan timeSpan, WriteApi influxWrite, CancellationToken cancellationToken)
+    private async Task<(DateTime? minFirstDate, DateTime? minLastDate)> DownloadGenerateData(DateTime startDateTime, TimeSpan timeSpan, KeyValuePair<string, string> areaKeyValue, WriteApi influxWrite, CancellationToken cancellationToken)
     {
-        const string seDomain = "10YSE-1--------K";
-
         GL_MarketDocument? data;
         try
         {
-            data = await _entsoeApiClient.ActualGenerationPerProductionType(_options.Value.AccessToken, seDomain, startDateTime, startDateTime.Add(timeSpan), cancellationToken);
+            data = await _entsoeApiClient.ActualGenerationPerProductionType(_options.Value.AccessToken, areaKeyValue.Key, startDateTime, startDateTime.Add(timeSpan), cancellationToken);
         }
 
         catch (ApiException ex)
@@ -152,7 +92,7 @@ public class GenerateMeasurements
             if (acknowledgement?.Reason?.text?.StartsWith("No matching data found") == true)
             {
                 // No data found for the current query.
-                return;
+                return (null, null);
             }
 
             throw;
@@ -169,8 +109,19 @@ public class GenerateMeasurements
             .GroupBy(x => x.dateTime);
 
         // Parse data and iterate all points.
+        DateTime? minDate = null, maxDate = null;
         foreach (var pointsForDateTime in pointsPerDateTime)
         {
+            if (minDate == null || pointsForDateTime.Key < minDate)
+            {
+                minDate = pointsForDateTime.Key;
+            }
+
+            if (maxDate == null || pointsForDateTime.Key > maxDate)
+            {
+                maxDate = pointsForDateTime.Key;
+            }
+
             var totalQuantity = 0m;
             var pointsPerEnergyType = pointsForDateTime
                 .GroupBy(p => p.energyType);
@@ -190,7 +141,8 @@ public class GenerateMeasurements
                 // Save quantityPerEnergyType to InfluxDb.
                 influxWrite.WritePoint(
                     PointData.Measurement(_influxDbOptions.Value.GenerateMeasurement)
-                        .Tag("measurements", pointsForEnergyType.Key)
+                        .Tag("energyType", pointsForEnergyType.Key)
+                        .Tag("area", areaKeyValue.Value)
                         .Field("value", quantityPerEnergyType)
                         .Timestamp(minDateTime, WritePrecision.Ns)
                     , _influxDbOptions.Value.Bucket, _influxDbOptions.Value.Organization
@@ -202,12 +154,15 @@ public class GenerateMeasurements
             // Save totalQuantity to InfluxDb.
             influxWrite.WritePoint(
                 PointData.Measurement(_influxDbOptions.Value.GenerateMeasurement)
-                    .Tag("measurements", "Total produktion")
+                    .Tag("energyType", "Total produktion")
+                    .Tag("area", areaKeyValue.Value)
                     .Field("value", totalQuantity)
                     .Timestamp(pointsForDateTime.Key, WritePrecision.Ns)
                 , _influxDbOptions.Value.Bucket, _influxDbOptions.Value.Organization
             );
         }
+
+        return (minDate, maxDate);
     }
 
     private IEnumerable<T> EnumeratePeriodPoints<T>(TimeSeries? timeSerie, Func<string, string, DateTime, Point, T> func)
@@ -218,7 +173,7 @@ public class GenerateMeasurements
         }
 
         var psrType = timeSerie.MktPSRType.psrType;
-        if (!EnergyTypeLookup.TryGetValue(psrType, out var energyType))
+        if (!EntsoeCodes.EnergyTypes.TryGetValue(psrType, out var energyType))
         {
             _logger.LogWarning("Missing mapping from {PsrType} to energyType.", psrType);
             yield break;
@@ -226,7 +181,7 @@ public class GenerateMeasurements
 
         foreach (var period in timeSerie.Period)
         {
-            // Iterate datapointes.
+            // Iterate data-points.
             if (!DateTime.TryParse(period.timeInterval.start, CultureInfo.InvariantCulture, out var firstDateTime))
             {
                 _logger.LogWarning("Could not parse period {start} as DateTime", period.timeInterval.start);
@@ -268,6 +223,45 @@ public class GenerateMeasurements
                 _logger.LogError(error.Exception.Message);
                 break;
         }
+    }
+
+    private async Task<(DateTime? firstDate, DateTime? lastDate)> SyncGenerateForArea(KeyValuePair<string, string> areaKeyValue, QueryApi influxQuery, WriteApi influxWrite, CancellationToken cancellationToken)
+    {
+        // Find out what the latest date is that we've previously stored.
+        var from = (
+            (
+                await influxQuery.QueryAsync<InfluxData>($@"from(bucket: ""{_influxDbOptions.Value.Bucket}"")
+  |> range(start: -10y, stop: now())
+  |> filter(fn: (r) => r[""_measurement""] == ""{_influxDbOptions.Value.GenerateMeasurement}"" and r[""area""] == ""{areaKeyValue.Value}"")
+  |> group()
+  |> last(column: ""_time"")
+", _influxDbOptions.Value.Organization, cancellationToken)
+            )
+            .FirstOrDefault()?.Time ?? BeginningOfTime.DateTime
+        ).Date;
+
+        var startDateTime = from.Date;
+        var timeSpan = TimeSpan.FromDays(7);
+
+        var currentDate = startDateTime;
+        DateTime? firstDate = null, lastDate = null;
+        while (currentDate < DateTime.Now)
+        {
+            var (currentFirstDate, currentLastDate) = await DownloadGenerateData(currentDate, timeSpan, areaKeyValue, influxWrite, cancellationToken);
+            if (firstDate == null || currentFirstDate < firstDate)
+            {
+                firstDate = currentFirstDate;
+            }
+
+            if (lastDate == null || currentLastDate > lastDate)
+            {
+                lastDate = currentLastDate;
+            }
+
+            currentDate = currentDate.Add(timeSpan);
+        }
+
+        return (firstDate, lastDate);
     }
 
     #endregion

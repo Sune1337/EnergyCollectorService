@@ -19,6 +19,7 @@
     <ItemGroup>
       <ProjectReference Include="..\EnergyCollectorService.CurrencyConversion\EnergyCollectorService.CurrencyConversion.csproj" />
       <ProjectReference Include="..\EnergyCollectorService.InfluxDb\EnergyCollectorService.InfluxDb.csproj" />
+      <ProjectReference Include="..\EnergyCollectorService.Utils\EnergyCollectorService.Utils.csproj" />
     </ItemGroup>
 
 </Project>

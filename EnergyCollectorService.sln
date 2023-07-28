@@ -15,6 +15,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EnergyCollectorService.Infl
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EnergyCollectorService.CurrencyConversion", "EnergyCollectorService.CurrencyConversion\EnergyCollectorService.CurrencyConversion.csproj", "{8AA0794E-27E7-429D-A66F-B518DFDDDFFC}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EnergyCollectorService.Utils", "EnergyCollectorService.Utils\EnergyCollectorService.Utils.csproj", "{5AC70465-377D-415F-A105-8775C10C272D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -41,5 +43,9 @@ Global
 		{8AA0794E-27E7-429D-A66F-B518DFDDDFFC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8AA0794E-27E7-429D-A66F-B518DFDDDFFC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8AA0794E-27E7-429D-A66F-B518DFDDDFFC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5AC70465-377D-415F-A105-8775C10C272D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5AC70465-377D-415F-A105-8775C10C272D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5AC70465-377D-415F-A105-8775C10C272D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5AC70465-377D-415F-A105-8775C10C272D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

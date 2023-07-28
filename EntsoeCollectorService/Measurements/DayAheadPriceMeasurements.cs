@@ -1,38 +1,23 @@
-﻿namespace EntsoeCollectorService.Measurements;
-
-using System.Globalization;
-using Configuration;
+﻿using System.Globalization;
 using EnergyCollectorService.CurrencyConversion;
 using EnergyCollectorService.InfluxDb.Models;
 using EnergyCollectorService.InfluxDb.Options;
-using EntsoeApi;
-using EntsoeApi.Models.Publication;
+using EnergyCollectorService.Utils;
+using EntsoeCollectorService.Configuration;
+using EntsoeCollectorService.EntsoeApi;
+using EntsoeCollectorService.EntsoeApi.Models.Publication;
+using EntsoeCollectorService.Utils;
 using InfluxDB.Client;
 using InfluxDB.Client.Api.Domain;
 using InfluxDB.Client.Writes;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Refit;
-using Utils;
+
+namespace EntsoeCollectorService.Measurements;
 
 public class DayAheadPriceMeasurements
 {
-    #region Static Fields
-
-    private static readonly Dictionary<string, string> AreaLookup = new()
-    {
-        // 10Y1001A1001A44P IPA|SE1, BZN|SE1, MBA|SE1, SCA|SE1
-        { "10Y1001A1001A44P", "SE1" },
-        // 10Y1001A1001A45N SCA|SE2, MBA|SE2, BZN|SE2, IPA|SE2
-        { "10Y1001A1001A45N", "SE2" },
-        // 10Y1001A1001A46L IPA|SE3, BZN|SE3, MBA|SE3, SCA|SE3
-        { "10Y1001A1001A46L", "SE3" },
-        // 10Y1001A1001A47J SCA|SE4, MBA|SE4, BZN|SE4, IPA|SE4
-        { "10Y1001A1001A47J", "SE4" }
-    };
-
-    #endregion
-
     #region Fields
 
     private readonly ICurrencyConvert _currencyConvert;
@@ -71,7 +56,7 @@ public class DayAheadPriceMeasurements
         using var writeApi = influxDBClient.GetWriteApi();
         writeApi.EventHandler += InfluxWriteEventHandler;
 
-        foreach (var areaKeyValue in AreaLookup)
+        foreach (var areaKeyValue in EntsoeCodes.Areas)
         {
             await SyncDayAheadPricesForArea(areaKeyValue, queryApi, writeApi, cancellationToken);
         }
@@ -192,7 +177,7 @@ public class DayAheadPriceMeasurements
   |> last(column: ""_time"")
 ", _influxDbOptions.Value.Organization, cancellationToken)
             )
-            .FirstOrDefault()?.Time ?? DateTime.Now.AddYears(-10)
+            .FirstOrDefault()?.Time ?? BeginningOfTime.DateTime
         ).Date;
 
         var startDateTime = from.Date;

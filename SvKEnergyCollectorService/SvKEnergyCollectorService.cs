@@ -1,3 +1,5 @@
+using EnergyCollectorService.Utils;
+
 namespace SvKEnergyCollectorService;
 
 using System.Net.Http.Json;
@@ -75,7 +77,7 @@ public class SvKEnergyCollectorService : ISvKEnergyCollectorService
   |> last(column: ""_time"")
 ", _options.Value.Organization, cancellationToken)
                 )
-                .FirstOrDefault()?.Time ?? DateTime.Now.AddYears(-10)
+                .FirstOrDefault()?.Time ?? BeginningOfTime.DateTime
             ).Date;
 
             // Get influx writer.
