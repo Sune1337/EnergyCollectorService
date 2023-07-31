@@ -1,22 +1,20 @@
-﻿using EnergyCollectorService.Utils;
-
-namespace EntsoeCollectorService.Measurements;
-
-using System.Globalization;
-using System.Xml;
-using Configuration;
+﻿using System.Globalization;
 using EnergyCollectorService.CurrencyConversion;
 using EnergyCollectorService.InfluxDb.Models;
 using EnergyCollectorService.InfluxDb.Options;
-using EntsoeApi;
-using EntsoeApi.Models.Generationload;
+using EnergyCollectorService.Utils;
+using EntsoeCollectorService.Configuration;
+using EntsoeCollectorService.EntsoeApi;
+using EntsoeCollectorService.EntsoeApi.Models.Generationload;
+using EntsoeCollectorService.Utils;
 using InfluxDB.Client;
 using InfluxDB.Client.Api.Domain;
 using InfluxDB.Client.Writes;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Refit;
-using Utils;
+
+namespace EntsoeCollectorService.Measurements;
 
 public class LoadMeasurements
 {
@@ -63,63 +61,9 @@ public class LoadMeasurements
         writeApi.EventHandler += InfluxWriteEventHandler;
 
         // Sync new data.
-        DateTime? minFirstDate = null, minLastDate = null;
         foreach (var areaKeyValue in EntsoeCodes.Areas)
         {
-            var (currentFirstDate, currentLastDate) = await SyncLoadForArea(areaKeyValue, queryApi, writeApi, cancellationToken);
-            if (minFirstDate == null || currentFirstDate < minFirstDate)
-            {
-                minFirstDate = currentFirstDate;
-            }
-
-            if (minLastDate == null || currentLastDate < minLastDate)
-            {
-                minLastDate = currentLastDate;
-            }
-        }
-
-        // Calculate new total load.
-        if (minFirstDate != null && minLastDate != null)
-        {
-            // Make sure all written data is flushed.
-            writeApi.Flush();
-
-            var start = XmlConvert.ToString(minFirstDate.Value, XmlDateTimeSerializationMode.Utc);
-
-            var lastCalculatedLoadData = await queryApi.QueryAsync<InfluxData>($@"from(bucket: ""{_influxDbOptions.Value.Bucket}"")
-  |> range(start: -10y, stop: now())
-  |> filter(fn: (r) => r[""_measurement""] == ""{_influxDbOptions.Value.LoadMeasurement}"" and r[""measurements""] == ""Total last"")
-  |> group()
-  |> last(column: ""_time"")
-", _influxDbOptions.Value.Organization, cancellationToken);
-
-            var lastTotalLoadDateTime = lastCalculatedLoadData.FirstOrDefault()?.Time;
-            var calculateFromDateTime = lastTotalLoadDateTime == null
-                ? BeginningOfTime.DateTime
-                : minFirstDate < lastTotalLoadDateTime
-                    ? minFirstDate.Value
-                    : lastTotalLoadDateTime.Value;
-
-            start = XmlConvert.ToString(calculateFromDateTime, XmlDateTimeSerializationMode.Utc);
-            var stop = XmlConvert.ToString(minLastDate.Value.AddMicroseconds(1), XmlDateTimeSerializationMode.Utc);
-            var loadData = await queryApi.QueryAsync<InfluxData>($@"from(bucket: ""{_influxDbOptions.Value.Bucket}"")
-  |> range(start: {start}, stop: {stop})
-  |> filter(fn: (r) => r[""_measurement""] == ""{_influxDbOptions.Value.LoadMeasurement}"" and r[""_field""] == ""value"" and r[""measurements""] != ""Total last"")
-  |> group(columns: [""_time""])
-  |> sum(column: ""_value"")
-", _influxDbOptions.Value.Organization, cancellationToken);
-
-            foreach (var data in loadData)
-            {
-                // Save data to InfluxDb.
-                writeApi.WritePoint(
-                    PointData.Measurement(_influxDbOptions.Value.LoadMeasurement)
-                        .Tag("measurements", "Total last")
-                        .Field("value", data.Value)
-                        .Timestamp(data.Time, WritePrecision.Ns)
-                    , _influxDbOptions.Value.Bucket, _influxDbOptions.Value.Organization
-                );
-            }
+            await SyncLoadForArea(areaKeyValue, queryApi, writeApi, cancellationToken);
         }
     }
 
@@ -127,7 +71,7 @@ public class LoadMeasurements
 
     #region Methods
 
-    private async Task<(DateTime? minFirstDate, DateTime? minLastDate)> DownloadLoadData(DateTime startDateTime, TimeSpan timeSpan, KeyValuePair<string, string> areaKeyValue, WriteApi influxWrite, CancellationToken cancellationToken)
+    private async Task DownloadLoadData(DateTime startDateTime, TimeSpan timeSpan, KeyValuePair<string, string> areaKeyValue, WriteApi influxWrite, CancellationToken cancellationToken)
     {
         GL_MarketDocument? data;
         try
@@ -142,7 +86,7 @@ public class LoadMeasurements
             if (acknowledgement?.Reason?.text?.StartsWith("No matching data found") == true)
             {
                 // No data found for the current query.
-                return (null, null);
+                return;
             }
 
             throw;
@@ -158,30 +102,17 @@ public class LoadMeasurements
             );
 
         // Parse data and iterate all points.
-        DateTime? minDate = null, maxDate = null;
         foreach (var point in points)
         {
-            if (minDate == null || point.dateTime < minDate)
-            {
-                minDate = point.dateTime;
-            }
-
-            if (maxDate == null || point.dateTime > maxDate)
-            {
-                maxDate = point.dateTime;
-            }
-
             // Save data to InfluxDb.
             influxWrite.WritePoint(
                 PointData.Measurement(_influxDbOptions.Value.LoadMeasurement)
-                    .Tag("measurements", areaKeyValue.Value)
-                    .Field("value", point.quantity)
+                    .Tag("area", areaKeyValue.Value)
+                    .Field("MW", point.quantity)
                     .Timestamp(point.dateTime, WritePrecision.Ns)
                 , _influxDbOptions.Value.Bucket, _influxDbOptions.Value.Organization
             );
         }
-
-        return (minDate, maxDate);
     }
 
     private IEnumerable<T> EnumeratePeriodPoints<T>(TimeSeries? timeSerie, Func<DateTime, Point, T> func)
@@ -237,14 +168,14 @@ public class LoadMeasurements
         }
     }
 
-    private async Task<(DateTime? firstDate, DateTime? lastDate)> SyncLoadForArea(KeyValuePair<string, string> areaKeyValue, QueryApi influxQuery, WriteApi influxWrite, CancellationToken cancellationToken)
+    private async Task SyncLoadForArea(KeyValuePair<string, string> areaKeyValue, QueryApi influxQuery, WriteApi influxWrite, CancellationToken cancellationToken)
     {
         // Find out what the latest date is that we've previously stored.
         var from = (
             (
                 await influxQuery.QueryAsync<InfluxData>($@"from(bucket: ""{_influxDbOptions.Value.Bucket}"")
   |> range(start: -10y, stop: now())
-  |> filter(fn: (r) => r[""_measurement""] == ""{_influxDbOptions.Value.LoadMeasurement}"" and r[""measurements""] == ""{areaKeyValue.Value}"")
+  |> filter(fn: (r) => r[""_measurement""] == ""{_influxDbOptions.Value.LoadMeasurement}"" and r[""area""] == ""{areaKeyValue.Value}"")
   |> group()
   |> last(column: ""_time"")
 ", _influxDbOptions.Value.Organization, cancellationToken)
@@ -256,24 +187,11 @@ public class LoadMeasurements
         var timeSpan = TimeSpan.FromDays(7);
 
         var currentDate = startDateTime;
-        DateTime? firstDate = null, lastDate = null;
         while (currentDate < DateTime.Now)
         {
-            var (currentFirstDate, currentLastDate) = await DownloadLoadData(currentDate, timeSpan, areaKeyValue, influxWrite, cancellationToken);
-            if (firstDate == null || currentFirstDate < firstDate)
-            {
-                firstDate = currentFirstDate;
-            }
-
-            if (lastDate == null || currentLastDate > lastDate)
-            {
-                lastDate = currentLastDate;
-            }
-
+            await DownloadLoadData(currentDate, timeSpan, areaKeyValue, influxWrite, cancellationToken);
             currentDate = currentDate.Add(timeSpan);
         }
-
-        return (firstDate, lastDate);
     }
 
     #endregion

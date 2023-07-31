@@ -104,8 +104,9 @@ public class DayAheadPriceMeasurements
             // Save data to InfluxDb.
             influxWrite.WritePoint(
                 PointData.Measurement(_influxDbOptions.Value.DayAheadPriceMeasurement)
-                    .Tag("measurements", areaKeyValue.Value)
-                    .Field("value", point.priceamount * exchangeRate / 1000)
+                    .Tag("area", areaKeyValue.Value)
+                    .Field("PricePerkWhInSEK", point.priceamount * exchangeRate / 1000)
+                    .Field("FxEURSEK", exchangeRate)
                     .Timestamp(point.dateTime, WritePrecision.Ns)
                 , _influxDbOptions.Value.Bucket, _influxDbOptions.Value.Organization
             );
@@ -172,7 +173,7 @@ public class DayAheadPriceMeasurements
             (
                 await influxQuery.QueryAsync<InfluxData>($@"from(bucket: ""{_influxDbOptions.Value.Bucket}"")
   |> range(start: -10y, stop: now())
-  |> filter(fn: (r) => r[""_measurement""] == ""{_influxDbOptions.Value.DayAheadPriceMeasurement}"" and r[""measurements""] == ""{areaKeyValue.Value}"")
+  |> filter(fn: (r) => r[""_measurement""] == ""{_influxDbOptions.Value.DayAheadPriceMeasurement}"" and r[""area""] == ""{areaKeyValue.Value}"")
   |> group()
   |> last(column: ""_time"")
 ", _influxDbOptions.Value.Organization, cancellationToken)

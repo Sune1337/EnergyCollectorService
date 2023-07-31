@@ -57,19 +57,9 @@ public class GenerateMeasurements
         writeApi.EventHandler += InfluxWriteEventHandler;
 
         // Sync new data.
-        DateTime? minFirstDate = null, minLastDate = null;
         foreach (var areaKeyValue in EntsoeCodes.Areas)
         {
-            var (currentFirstDate, currentLastDate) = await SyncGenerateForArea(areaKeyValue, queryApi, writeApi, cancellationToken);
-            if (minFirstDate == null || currentFirstDate < minFirstDate)
-            {
-                minFirstDate = currentFirstDate;
-            }
-
-            if (minLastDate == null || currentLastDate < minLastDate)
-            {
-                minLastDate = currentLastDate;
-            }
+            await SyncGenerateForArea(areaKeyValue, queryApi, writeApi, cancellationToken);
         }
     }
 
@@ -77,7 +67,7 @@ public class GenerateMeasurements
 
     #region Methods
 
-    private async Task<(DateTime? minFirstDate, DateTime? minLastDate)> DownloadGenerateData(DateTime startDateTime, TimeSpan timeSpan, KeyValuePair<string, string> areaKeyValue, WriteApi influxWrite, CancellationToken cancellationToken)
+    private async Task DownloadGenerateData(DateTime startDateTime, TimeSpan timeSpan, KeyValuePair<string, string> areaKeyValue, WriteApi influxWrite, CancellationToken cancellationToken)
     {
         GL_MarketDocument? data;
         try
@@ -92,7 +82,7 @@ public class GenerateMeasurements
             if (acknowledgement?.Reason?.text?.StartsWith("No matching data found") == true)
             {
                 // No data found for the current query.
-                return (null, null);
+                return;
             }
 
             throw;
@@ -109,20 +99,8 @@ public class GenerateMeasurements
             .GroupBy(x => x.dateTime);
 
         // Parse data and iterate all points.
-        DateTime? minDate = null, maxDate = null;
         foreach (var pointsForDateTime in pointsPerDateTime)
         {
-            if (minDate == null || pointsForDateTime.Key < minDate)
-            {
-                minDate = pointsForDateTime.Key;
-            }
-
-            if (maxDate == null || pointsForDateTime.Key > maxDate)
-            {
-                maxDate = pointsForDateTime.Key;
-            }
-
-            var totalQuantity = 0m;
             var pointsPerEnergyType = pointsForDateTime
                 .GroupBy(p => p.energyType);
             foreach (var pointsForEnergyType in pointsPerEnergyType)
@@ -143,26 +121,12 @@ public class GenerateMeasurements
                     PointData.Measurement(_influxDbOptions.Value.GenerateMeasurement)
                         .Tag("energyType", pointsForEnergyType.Key)
                         .Tag("area", areaKeyValue.Value)
-                        .Field("value", quantityPerEnergyType)
+                        .Field("MW", quantityPerEnergyType)
                         .Timestamp(minDateTime, WritePrecision.Ns)
                     , _influxDbOptions.Value.Bucket, _influxDbOptions.Value.Organization
                 );
-
-                totalQuantity += quantityPerEnergyType;
             }
-
-            // Save totalQuantity to InfluxDb.
-            influxWrite.WritePoint(
-                PointData.Measurement(_influxDbOptions.Value.GenerateMeasurement)
-                    .Tag("energyType", "Total produktion")
-                    .Tag("area", areaKeyValue.Value)
-                    .Field("value", totalQuantity)
-                    .Timestamp(pointsForDateTime.Key, WritePrecision.Ns)
-                , _influxDbOptions.Value.Bucket, _influxDbOptions.Value.Organization
-            );
         }
-
-        return (minDate, maxDate);
     }
 
     private IEnumerable<T> EnumeratePeriodPoints<T>(TimeSeries? timeSerie, Func<string, string, DateTime, Point, T> func)
@@ -225,7 +189,7 @@ public class GenerateMeasurements
         }
     }
 
-    private async Task<(DateTime? firstDate, DateTime? lastDate)> SyncGenerateForArea(KeyValuePair<string, string> areaKeyValue, QueryApi influxQuery, WriteApi influxWrite, CancellationToken cancellationToken)
+    private async Task SyncGenerateForArea(KeyValuePair<string, string> areaKeyValue, QueryApi influxQuery, WriteApi influxWrite, CancellationToken cancellationToken)
     {
         // Find out what the latest date is that we've previously stored.
         var from = (
@@ -244,24 +208,11 @@ public class GenerateMeasurements
         var timeSpan = TimeSpan.FromDays(7);
 
         var currentDate = startDateTime;
-        DateTime? firstDate = null, lastDate = null;
         while (currentDate < DateTime.Now)
         {
-            var (currentFirstDate, currentLastDate) = await DownloadGenerateData(currentDate, timeSpan, areaKeyValue, influxWrite, cancellationToken);
-            if (firstDate == null || currentFirstDate < firstDate)
-            {
-                firstDate = currentFirstDate;
-            }
-
-            if (lastDate == null || currentLastDate > lastDate)
-            {
-                lastDate = currentLastDate;
-            }
-
+            await DownloadGenerateData(currentDate, timeSpan, areaKeyValue, influxWrite, cancellationToken);
             currentDate = currentDate.Add(timeSpan);
         }
-
-        return (firstDate, lastDate);
     }
 
     #endregion

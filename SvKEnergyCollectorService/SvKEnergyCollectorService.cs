@@ -1,16 +1,15 @@
-using EnergyCollectorService.Utils;
-
-namespace SvKEnergyCollectorService;
-
 using System.Net.Http.Json;
 using System.Text.Json;
 using EnergyCollectorService.InfluxDb.Models;
 using EnergyCollectorService.InfluxDb.Options;
+using EnergyCollectorService.Utils;
 using InfluxDB.Client;
 using InfluxDB.Client.Api.Domain;
 using InfluxDB.Client.Writes;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
+namespace SvKEnergyCollectorService;
 
 public class SvKEnergyCollectorService : ISvKEnergyCollectorService
 {
@@ -125,8 +124,8 @@ public class SvKEnergyCollectorService : ISvKEnergyCollectorService
                     {
                         influxWrite.WritePoint(
                             PointData.Measurement(_options.Value.GenerateMeasurement)
-                                .Tag("measurements", energyType)
-                                .Field("value", xy.Y)
+                                .Tag("energyType", energyType)
+                                .Field("MW", xy.Y)
                                 .Timestamp(xy.X, WritePrecision.Ns)
                             , _options.Value.Bucket, _options.Value.Organization
                         );
