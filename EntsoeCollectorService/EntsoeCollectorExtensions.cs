@@ -34,7 +34,7 @@ public static class EntsoeCollectorExtensions
             })
             .AddHttpMessageHandler(() =>
                 new RateLimitHttpMessageHandler(
-                    limitCount: 350,
+                    limitCount: 200,
                     limitTime: TimeSpan.FromSeconds(60)))
             .SetHandlerLifetime(Timeout.InfiniteTimeSpan);
 
