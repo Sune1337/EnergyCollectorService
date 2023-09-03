@@ -57,7 +57,7 @@ public class GenerateMeasurements
         writeApi.EventHandler += InfluxWriteEventHandler;
 
         // Sync new data.
-        foreach (var areaKeyValue in EntsoeCodes.Areas)
+        foreach (var areaKeyValue in EntsoeCodes.Areas.Where(a => a.CountryCode == "SE"))
         {
             await SyncGenerateForArea(areaKeyValue, queryApi, writeApi, cancellationToken);
         }
@@ -67,12 +67,12 @@ public class GenerateMeasurements
 
     #region Methods
 
-    private async Task DownloadGenerateData(DateTime startDateTime, TimeSpan timeSpan, KeyValuePair<string, string> areaKeyValue, WriteApi influxWrite, CancellationToken cancellationToken)
+    private async Task DownloadGenerateData(DateTime startDateTime, TimeSpan timeSpan, EntsoeArea areaKeyValue, WriteApi influxWrite, CancellationToken cancellationToken)
     {
         GL_MarketDocument? data;
         try
         {
-            data = await _entsoeApiClient.ActualGenerationPerProductionType(_options.Value.AccessToken, areaKeyValue.Key, startDateTime, startDateTime.Add(timeSpan), cancellationToken);
+            data = await _entsoeApiClient.ActualGenerationPerProductionType(_options.Value.AccessToken, areaKeyValue.Code, startDateTime, startDateTime.Add(timeSpan), cancellationToken);
         }
 
         catch (ApiException ex)
@@ -120,7 +120,7 @@ public class GenerateMeasurements
                 influxWrite.WritePoint(
                     PointData.Measurement(_influxDbOptions.Value.GenerateMeasurement)
                         .Tag("energyType", pointsForEnergyType.Key)
-                        .Tag("area", areaKeyValue.Value)
+                        .Tag("area", areaKeyValue.Description)
                         .Field("MW", quantityPerEnergyType)
                         .Timestamp(minDateTime, WritePrecision.Ns)
                     , _influxDbOptions.Value.Bucket, _influxDbOptions.Value.Organization
@@ -189,14 +189,14 @@ public class GenerateMeasurements
         }
     }
 
-    private async Task SyncGenerateForArea(KeyValuePair<string, string> areaKeyValue, QueryApi influxQuery, WriteApi influxWrite, CancellationToken cancellationToken)
+    private async Task SyncGenerateForArea(EntsoeArea areaKeyValue, QueryApi influxQuery, WriteApi influxWrite, CancellationToken cancellationToken)
     {
         // Find out what the latest date is that we've previously stored.
         var from = (
             (
                 await influxQuery.QueryAsync<InfluxData>($@"from(bucket: ""{_influxDbOptions.Value.Bucket}"")
   |> range(start: -10y, stop: now())
-  |> filter(fn: (r) => r[""_measurement""] == ""{_influxDbOptions.Value.GenerateMeasurement}"" and r[""area""] == ""{areaKeyValue.Value}"")
+  |> filter(fn: (r) => r[""_measurement""] == ""{_influxDbOptions.Value.GenerateMeasurement}"" and r[""area""] == ""{areaKeyValue.Description}"")
   |> group()
   |> last(column: ""_time"")
 ", _influxDbOptions.Value.Organization, cancellationToken)

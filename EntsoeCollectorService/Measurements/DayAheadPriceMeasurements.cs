@@ -56,7 +56,7 @@ public class DayAheadPriceMeasurements
         using var writeApi = influxDBClient.GetWriteApi();
         writeApi.EventHandler += InfluxWriteEventHandler;
 
-        foreach (var areaKeyValue in EntsoeCodes.Areas)
+        foreach (var areaKeyValue in EntsoeCodes.Areas.Where(a => a.CountryCode == "SE"))
         {
             await SyncDayAheadPricesForArea(areaKeyValue, queryApi, writeApi, cancellationToken);
         }
@@ -66,12 +66,12 @@ public class DayAheadPriceMeasurements
 
     #region Methods
 
-    private async Task DownloadDayAheadPriceData(DateTime startDateTime, TimeSpan timeSpan, KeyValuePair<string, string> areaKeyValue, WriteApi influxWrite, CancellationToken cancellationToken)
+    private async Task DownloadDayAheadPriceData(DateTime startDateTime, TimeSpan timeSpan, EntsoeArea areaKeyValue, WriteApi influxWrite, CancellationToken cancellationToken)
     {
         Publication_MarketDocument? data;
         try
         {
-            data = await _entsoeApiClient.DayAheadPrices(_options.Value.AccessToken, areaKeyValue.Key, areaKeyValue.Key, startDateTime, startDateTime.Add(timeSpan), cancellationToken);
+            data = await _entsoeApiClient.DayAheadPrices(_options.Value.AccessToken, areaKeyValue.Code, areaKeyValue.Code, startDateTime, startDateTime.Add(timeSpan), cancellationToken);
         }
 
         catch (ApiException ex)
@@ -104,7 +104,7 @@ public class DayAheadPriceMeasurements
             // Save data to InfluxDb.
             influxWrite.WritePoint(
                 PointData.Measurement(_influxDbOptions.Value.DayAheadPriceMeasurement)
-                    .Tag("area", areaKeyValue.Value)
+                    .Tag("area", areaKeyValue.Description)
                     .Field("PricePerkWhInSEK", point.priceamount * exchangeRate / 1000)
                     .Field("FxEURSEK", exchangeRate)
                     .Timestamp(point.dateTime, WritePrecision.Ns)
@@ -166,14 +166,14 @@ public class DayAheadPriceMeasurements
         }
     }
 
-    private async Task SyncDayAheadPricesForArea(KeyValuePair<string, string> areaKeyValue, QueryApi influxQuery, WriteApi influxWrite, CancellationToken cancellationToken)
+    private async Task SyncDayAheadPricesForArea(EntsoeArea areaKeyValue, QueryApi influxQuery, WriteApi influxWrite, CancellationToken cancellationToken)
     {
         // Find out what the latest date is that we've previously stored.
         var from = (
             (
                 await influxQuery.QueryAsync<InfluxData>($@"from(bucket: ""{_influxDbOptions.Value.Bucket}"")
   |> range(start: -10y, stop: now())
-  |> filter(fn: (r) => r[""_measurement""] == ""{_influxDbOptions.Value.DayAheadPriceMeasurement}"" and r[""area""] == ""{areaKeyValue.Value}"")
+  |> filter(fn: (r) => r[""_measurement""] == ""{_influxDbOptions.Value.DayAheadPriceMeasurement}"" and r[""area""] == ""{areaKeyValue.Description}"")
   |> group()
   |> last(column: ""_time"")
 ", _influxDbOptions.Value.Organization, cancellationToken)

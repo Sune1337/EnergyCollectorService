@@ -1,19 +1,30 @@
 ﻿namespace EntsoeCollectorService.Utils;
 
+public class EntsoeArea
+{
+    #region Fields
+
+    public string Code;
+    public string CountryCode;
+    public string Description;
+
+    #endregion
+}
+
 public static class EntsoeCodes
 {
     #region Static Fields
 
-    public static readonly Dictionary<string, string> Areas = new()
+    public static readonly List<EntsoeArea> Areas = new()
     {
         // 10Y1001A1001A44P IPA|SE1, BZN|SE1, MBA|SE1, SCA|SE1
-        { "10Y1001A1001A44P", "SE1" },
+        new EntsoeArea { Code = "10Y1001A1001A44P", Description = "SE1", CountryCode = "SE" },
         // 10Y1001A1001A45N SCA|SE2, MBA|SE2, BZN|SE2, IPA|SE2
-        { "10Y1001A1001A45N", "SE2" },
+        new EntsoeArea { Code = "10Y1001A1001A45N", Description = "SE2", CountryCode = "SE" },
         // 10Y1001A1001A46L IPA|SE3, BZN|SE3, MBA|SE3, SCA|SE3
-        { "10Y1001A1001A46L", "SE3" },
+        new EntsoeArea { Code = "10Y1001A1001A46L", Description = "SE3", CountryCode = "SE" },
         // 10Y1001A1001A47J SCA|SE4, MBA|SE4, BZN|SE4, IPA|SE4
-        { "10Y1001A1001A47J", "SE4" }
+        new EntsoeArea { Code = "10Y1001A1001A47J", Description = "SE4", CountryCode = "SE" }
     };
 
     public static readonly Dictionary<string, string> EnergyTypes = new()
