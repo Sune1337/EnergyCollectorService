@@ -24,8 +24,24 @@ public static class EntsoeCodes
         // 10Y1001A1001A46L IPA|SE3, BZN|SE3, MBA|SE3, SCA|SE3
         new EntsoeArea { Code = "10Y1001A1001A46L", Description = "SE3", CountryCode = "SE" },
         // 10Y1001A1001A47J SCA|SE4, MBA|SE4, BZN|SE4, IPA|SE4
-        new EntsoeArea { Code = "10Y1001A1001A47J", Description = "SE4", CountryCode = "SE" }
+        new EntsoeArea { Code = "10Y1001A1001A47J", Description = "SE4", CountryCode = "SE" },
+
+        // Neighbours for power-transfer.
+        new EntsoeArea { Code = "10YFI-1--------U", Description = "FI", CountryCode = "FI" },
+        new EntsoeArea { Code = "10YNO-1--------2", Description = "NO1", CountryCode = "NO" },
+        new EntsoeArea { Code = "10YNO-3--------J", Description = "NO3", CountryCode = "NO" },
+        new EntsoeArea { Code = "10YNO-4--------9", Description = "NO4", CountryCode = "NO" },
+        new EntsoeArea { Code = "10YDK-1--------W", Description = "DK1", CountryCode = "DK" },
+        new EntsoeArea { Code = "10YDK-2--------M", Description = "DK2", CountryCode = "DK" },
+        new EntsoeArea { Code = "10Y1001A1001A63L", Description = "DE_AT_LU", CountryCode = "DE" },
+        new EntsoeArea { Code = "10Y1001A1001A82H", Description = "DE_LU", CountryCode = "DE" },
+        new EntsoeArea { Code = "10YLT-1001A0008Q", Description = "LT", CountryCode = "LT" },
+        new EntsoeArea { Code = "10YPL-AREA-----S", Description = "PL", CountryCode = "PL" }
     };
+
+    public static readonly Dictionary<string, EntsoeArea> AreaCodeLookup = Areas.ToDictionary(a => a.Code, a => a);
+    public static readonly Dictionary<string, EntsoeArea> AreaDescriptionLookup = Areas.ToDictionary(a => a.Description, a => a);
+
 
     public static readonly Dictionary<string, string> EnergyTypes = new()
     {
@@ -77,6 +93,14 @@ public static class EntsoeCodes
         { "B23", "Ospecificerat" },
         // B24 Transformer
         { "B24", "Ospecificerat" },
+    };
+
+    public static readonly Dictionary<string, string[]> TransferNeighbours = new()
+    {
+        { "SE1", new[] { "SE2", "FI", "NO4" } },
+        { "SE2", new[] { "SE1", "SE3", "NO3", "NO4" } },
+        { "SE3", new[] { "SE2", "SE4", "DK1", "FI", "NO1" } },
+        { "SE4", new[] { "SE3", "DE_AT_LU", "DE_LU", "DK2", "LT", "PL" } }
     };
 
     #endregion

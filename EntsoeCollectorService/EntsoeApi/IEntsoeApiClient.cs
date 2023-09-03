@@ -1,8 +1,8 @@
-﻿namespace EntsoeCollectorService.EntsoeApi;
-
-using Models.Generationload;
-using Models.Publication;
+﻿using EntsoeCollectorService.EntsoeApi.Models.Generationload;
+using EntsoeCollectorService.EntsoeApi.Models.Publication;
 using Refit;
+
+namespace EntsoeCollectorService.EntsoeApi;
 
 public interface IEntsoeApiClient
 {
@@ -16,6 +16,9 @@ public interface IEntsoeApiClient
 
     [Get("/api?documentType=A44")]
     Task<Publication_MarketDocument> DayAheadPrices(string? securityToken, string in_Domain, string out_Domain, DateTime periodStart, DateTime periodEnd, CancellationToken cancellationToken = default);
+
+    [Get("/api?documentType=A11")]
+    Task<Publication_MarketDocument> PhysicalFlows(string? securityToken, string in_Domain, string out_Domain, DateTime periodStart, DateTime periodEnd, CancellationToken cancellationToken = default);
 
     #endregion
 }

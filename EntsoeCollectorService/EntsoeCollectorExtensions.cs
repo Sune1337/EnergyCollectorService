@@ -1,12 +1,12 @@
-﻿namespace EntsoeCollectorService;
-
-using Configuration;
-using EntsoeApi;
-using EntsoeApi.Serialization;
-using Measurements;
+﻿using EntsoeCollectorService.Configuration;
+using EntsoeCollectorService.EntsoeApi;
+using EntsoeCollectorService.EntsoeApi.Serialization;
+using EntsoeCollectorService.Measurements;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Refit;
+
+namespace EntsoeCollectorService;
 
 public static class EntsoeCollectorExtensions
 {
@@ -43,6 +43,7 @@ public static class EntsoeCollectorExtensions
         services.AddTransient<GenerateMeasurements>();
         services.AddTransient<LoadMeasurements>();
         services.AddTransient<DayAheadPriceMeasurements>();
+        services.AddTransient<PhysicalFlowMeasurements>();
 
         // Add EntsoeCollectorService service.
         services.AddTransient<IEntsoeCollectorService, EntsoeCollectorService>();
