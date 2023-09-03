@@ -2,6 +2,7 @@
 using EntsoeCollectorService.EntsoeApi;
 using EntsoeCollectorService.EntsoeApi.Serialization;
 using EntsoeCollectorService.Measurements;
+using EntsoeCollectorService.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Refit;
@@ -17,20 +18,25 @@ public static class EntsoeCollectorExtensions
         // Register a HTTP client we will use for invoking Entsoe API.
         // We specifically declare a custom HttpClient so that we can add authentication HTTP headers to all requests automatically.
         services.AddHttpClient("EntsoeApiHttpClient", (serviceProvider, client) =>
-        {
-            var options = serviceProvider.GetService<IOptions<EntsoeApiOptions>>();
-            if (options?.Value == null)
             {
-                throw new Exception("EntsoeApiOptions is null.");
-            }
+                var options = serviceProvider.GetService<IOptions<EntsoeApiOptions>>();
+                if (options?.Value == null)
+                {
+                    throw new Exception("EntsoeApiOptions is null.");
+                }
 
-            if (string.IsNullOrEmpty(options.Value.BaseUrl))
-            {
-                throw new Exception("EntsoeApiOptions.BaseUrl is null or empty.");
-            }
+                if (string.IsNullOrEmpty(options.Value.BaseUrl))
+                {
+                    throw new Exception("EntsoeApiOptions.BaseUrl is null or empty.");
+                }
 
-            client.BaseAddress = new Uri(options.Value.BaseUrl);
-        });
+                client.BaseAddress = new Uri(options.Value.BaseUrl);
+            })
+            .AddHttpMessageHandler(() =>
+                new RateLimitHttpMessageHandler(
+                    limitCount: 400,
+                    limitTime: TimeSpan.FromSeconds(60)))
+            .SetHandlerLifetime(Timeout.InfiniteTimeSpan);
 
         // Add EntsoeApi client.
         services.AddRefitClient<IEntsoeApiClient>(serviceProvider => new RefitSettings
